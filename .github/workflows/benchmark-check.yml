@@ -1,0 +1,37 @@
+name: phantom-check
+# Public, third-party-executable reproduction evidence for the dark-field velocity
+# benchmark's --check gate. Runs the 144-condition deterministic sweep on every push
+# and PR and fails the build on any mismatch with reference_results.csv.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install pinned deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy==2.4.6 opencv-python-headless==5.0.0.93
+      - name: Environment record
+        run: python -c "import sys, numpy, cv2; print(sys.version); print('numpy', numpy.__version__); print('cv2', cv2.__version__)"
+      - name: Phantom --check gate (144 conditions, bit-exact vs reference table)
+        run: python run_benchmark.py --check
+      - name: Operating-condition gate self-check
+        run: python operating_condition_gate.py
+      - name: Archive check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phantom-check-${{ matrix.os }}
+          path: "*.csv"
